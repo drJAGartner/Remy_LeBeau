@@ -1,13 +1,15 @@
-import chess, argparse
+import chess, argparse, os
 import numpy as np
 import torch
 from torch import Tensor
 from torch import cat, zeros, ones
-
 from uuid import uuid1
+import sys
+sys.path.append("./engine")
+from torch_net import Engine
 
 class Remy:
-    def __init__(self, model=None):
+    def __init__(self, model=None, depth=0):
         self.board = chess.Board()
         self.piece_to_list = {
             "p":[1] + 5*[0] + 6*[0],
@@ -25,6 +27,7 @@ class Remy:
             ".":12*[0]
         }
         self.model = model
+        self.depth = depth
 
     def __str__(self) -> str:
         return self.board.__str__()
@@ -41,18 +44,42 @@ class Remy:
                 v_board.extend(self.piece_to_list[pc])
         return Tensor(v_board).reshape(1,-1)
 
+    def explore_moves(self, depth, best_n=5):
+        if depth == 0:
+            move_p = []
+            for move in self.board.legal_moves:
+                self.board.push_uci(str(move))
+                move_p.append((str(move), float(self.model(self.board_to_t())[0][0])))
+                self.board.pop()
+            return max(move_p)
+        else:
+            # First explore all legal moves from this position
+            potential_moves = []
+            for move in self.board.legal_moves:
+                self.board.push_uci(str(move))
+                potential_moves.append((str(move), float(self.model(self.board_to_t())[0][0])))
+                self.board.pop()
+            # Once moves are explored, select the best_n moves to 
+            # recursively investigate
+            move_p = {}
+            for move, p in sorted(potential_moves, key=lambda x: x[1], reverse=self.board.turn):
+                self.board.push_uci(move)
+                move_p[move] = self.explore_move(depth-1)
+                self.board.pop()
+            return move_p
+
     def computer_turn(self):
         '''
         computer_turn - the mechanics for a computer turn
 
-        params -
         '''
         if self.model is None:
             self.board.push_uci(str(np.random.choice(list(self.board.legal_moves))))
         else:
-            for move in self.board.legal_moves:
-                self.board.push_uci(str(move))
-                # turn is self.board.turn == True if it is whites turn, black otherwise
+            # turn is self.board.turn == True if it is whites turn, black otherwise
+            move_p = self.explore_moves(self.depth)
+                
+                
         return self.board_to_t(), self.board.is_game_over()
 
     def human_turn(self):
@@ -88,9 +115,9 @@ class Remy:
         return 'white win'
 
 
-def main(computer_white=False, human_player=True):
+def main(model, computer_white=False, human_player=True):
     # Create board, print initial state
-    gambit = Remy()
+    gambit = Remy(model=model)
 
     b_over, n_turns = False, 0
     while b_over is False:
@@ -125,6 +152,15 @@ def main(computer_white=False, human_player=True):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-white', type=bool, default=False, help='Make the computer player move the white pieces')
+    parser.add_argument('-model', type=str, default='')
     args = parser.parse_args()
-    
-    main(computer_white=args.white)
+    model = None
+    if args.model == 'latest':
+        model = Engine()
+        path = os.getcwd() + "/engine/saved_models/"
+        model_dicts = [path + x for x in os.listdir(path)]
+        model_dicts.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+        model.load_state_dict(torch.load(model_dicts[0]))
+        model.eval()
+
+    main(model, computer_white=args.white)
