@@ -1,7 +1,8 @@
 import os, sys, torch
+from uuid import uuid1
 sys.path.append("/".join(os.getcwd().split("/")[:-1])+"/" )
 from remy import play_game
-from torch_net import train_on_all, Engine
+from torch_net import update_train, Engine
 
 def main():
     for j in range(5):
@@ -16,7 +17,9 @@ def main():
             print("Play game {}".format(i))
             play_game(model, computer_white=False, human_player=False, save_path="../games/")
         print("Retrain Network")
-        train_on_all()
+        update_train(model)
+
+    torch.save(model.state_dict(), os.getcwd() + "/saved_models/"  + str(uuid1()) + ".pt")
 
 if __name__ == main():
     main()

@@ -68,5 +68,28 @@ def train_on_all():
 
     torch.save(en.state_dict(), os.getcwd() + "/saved_models/"  + str(uuid1()) + ".pt")
 
+def update_train(en, n_epochs=500, lr=.001):
+    criterion = nn.MSELoss()
+    optimizer = optim.SGD(en.parameters(), lr=lr)
+    
+    for epoch in range(n_epochs):
+        games = games_generator()
+        running_loss = 0.0
+        i= 0
+        for t_in, target in games:
+            # in your training loop:
+            optimizer.zero_grad()   # zero the gradient buffers
+            output = en(t_in)
+            loss = criterion(output, target)
+            loss.backward()
+            optimizer.step()
+            
+            # print statistics
+            running_loss += loss.item()
+            i += 1
+        if epoch%100==0:
+            print('Epoch %d loss: %.3f' % (epoch, running_loss / i))
+
+
 if __name__ == "__main__":
     train_on_all()
