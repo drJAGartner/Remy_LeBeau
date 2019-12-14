@@ -29,11 +29,16 @@ def games_generator():
     games_path = "/".join(os.getcwd().split("/")[:-1]) + "/games/"
     l_games = [(x, 0) for x in os.listdir(games_path + "black_wins/")]
     l_games = l_games + [(x, 1) for x in os.listdir(games_path+"white_wins/")]
+    l_games = l_games + [(x, .5) for x in os.listdir(games_path+"draws/")]
     shuffle(l_games)
     for game_file in l_games:
-        path = games_path + "black_wins/" if game_file[1]==0 else games_path + "white_wins/"
+        path = games_path + "black_wins/" 
+        if game_file[1]==1:
+            path = games_path + "white_wins/"
+        elif game_file[1]==.5:
+            path = games_path + "draws/"
         board_tensor = torch.load(path + game_file[0])
-        target_tensor = torch.zeros(board_tensor.shape[0], 1) if game_file[1]==0 else torch.ones(board_tensor.shape[0], 1)
+        target_tensor = torch.zeros(board_tensor.shape[0], 1) if game_file[1]==0 else game_file[1]*torch.ones(board_tensor.shape[0], 1)
         yield board_tensor, target_tensor
 
 def train_on_all():
@@ -43,8 +48,6 @@ def train_on_all():
     n_epochs = 2000
 
     for epoch in range(n_epochs):
-        print("Epoch {}".format(epoch))
-        n_game = 0
         games = games_generator()
         running_loss = 0.0
         i= 0
@@ -59,10 +62,9 @@ def train_on_all():
             # print statistics
             running_loss += loss.item()
             i += 1
-            if i == 4:
-                print('%d loss: %.3f' %
-                    (epoch, running_loss / i))
-                running_loss = 0.0
+        if epoch%100==0:
+            print('Epoch %d loss: %.3f' % (epoch, running_loss / i))
+
 
     torch.save(en.state_dict(), os.getcwd() + "/saved_models/"  + str(uuid1()) + ".pt")
 

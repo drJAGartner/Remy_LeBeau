@@ -8,6 +8,7 @@ import sys
 sys.path.append("./engine")
 from torch_net import Engine
 
+
 class Remy:
     def __init__(self, model=None, depth=0):
         self.board = chess.Board()
@@ -28,6 +29,7 @@ class Remy:
         }
         self.model = model
         self.depth = depth
+        self.current_graph = None
 
     def __str__(self) -> str:
         return self.board.__str__()
@@ -44,29 +46,26 @@ class Remy:
                 v_board.extend(self.piece_to_list[pc])
         return Tensor(v_board).reshape(1,-1)
 
-    def explore_moves(self, depth, best_n=5):
-        if depth == 0:
-            move_p = []
-            for move in self.board.legal_moves:
-                self.board.push_uci(str(move))
-                move_p.append((str(move), float(self.model(self.board_to_t())[0][0])))
-                self.board.pop()
-            return max(move_p)
+    def end_probabilities(self) -> float:
+        '''
+        end_probabilities = return win probabilities for rules based wins
+        three posibilities are white win via checkmate, black win via checkmate, or draw
+        '''
+        end = self.end_type()
+        if end == 'draw':
+            return .5
         else:
-            # First explore all legal moves from this position
-            potential_moves = []
-            for move in self.board.legal_moves:
-                self.board.push_uci(str(move))
-                potential_moves.append((str(move), float(self.model(self.board_to_t())[0][0])))
-                self.board.pop()
-            # Once moves are explored, select the best_n moves to 
-            # recursively investigate
-            move_p = {}
-            for move, p in sorted(potential_moves, key=lambda x: x[1], reverse=self.board.turn):
-                self.board.push_uci(move)
-                move_p[move] = self.explore_move(depth-1)
-                self.board.pop()
-            return move_p
+            if end == 'white win':
+                return 1.
+            else:
+                return 0.
+        
+    def engine_probabilities(self) -> float:
+        '''
+        engine_probabilities = return the NN assessment of the win probability of a board state
+        '''
+        return float(self.model(self.board_to_t())[0][0])
+            
 
     def computer_turn(self):
         '''
@@ -76,9 +75,34 @@ class Remy:
         if self.model is None:
             self.board.push_uci(str(np.random.choice(list(self.board.legal_moves))))
         else:
-            # turn is self.board.turn == True if it is whites turn, black otherwise
-            move_p = self.explore_moves(self.depth)
-                
+            move_ps = []
+            # get win probabilitilities for all moves
+            if self.board.legal_moves is None:
+                print(self)
+                a = 5
+            for move in self.board.legal_moves:
+                # make the move
+                self.board.push_uci(str(move))
+
+                # assess if the move ends the game
+                if self.board.is_game_over() is True:
+                    # if there is a checkmate in favor of the computer, make this move
+                    end_p = self.end_probabilities()
+                    if bool(end_p) != self.board.turn:
+                        return self.board_to_t(), self.board.is_game_over()
+                    move_ps.append((str(move), end_p))
+                else:
+                    move_ps.append((str(move), self.engine_probabilities()))
+            
+                # undo the move
+                self.board.pop()
+
+            if self.board.turn == False:
+                move_ps = [(x[0], 1-x[1]) for x in move_ps]
+            max_p = max([x[1] for x in move_ps])
+            move_ps = [x for x in move_ps if x[1]/max_p > .7]
+            total_p = sum([x[1] for x in move_ps])
+            self.board.push_uci(np.random.choice([x[0] for x in move_ps], p=[x[1]/total_p for x in move_ps]))
                 
         return self.board_to_t(), self.board.is_game_over()
 
@@ -115,16 +139,16 @@ class Remy:
         return 'white win'
 
 
-def main(model, computer_white=False, human_player=True):
+def play_game(model, computer_white=False, human_player=True, save_path="./games/"):
     # Create board, print initial state
     gambit = Remy(model=model)
 
     b_over, n_turns = False, 0
     while b_over is False:
-        if (gambit.board.turn == computer_white):
-            bt, b_over = gambit.computer_turn()
-        else: 
+        if (human_player is True) & (gambit.board.turn != computer_white):
             bt, b_over = gambit.human_turn()
+        else: 
+            bt, b_over = gambit.computer_turn()
 
         if n_turns == 0:
             board_tensor = bt
@@ -143,16 +167,19 @@ def main(model, computer_white=False, human_player=True):
 
     wt = gambit.end_type()
     print("Game ends in a {}".format(wt))
-    if wt != 'draw':
-        if wt == 'white win':
-            torch.save(board_tensor, "./games/white_wins/"+str(uuid1())+".pt")
-        else:
-            torch.save(board_tensor, "./games/black_wins/"+str(uuid1())+".pt")
+    if wt == 'draw':
+        torch.save(board_tensor, save_path + "draws/"+str(uuid1())+".pt")
+    elif wt == 'white win':
+        torch.save(board_tensor, save_path + "white_wins/"+str(uuid1())+".pt")
+    else:
+        torch.save(board_tensor, save_path + "black_wins/"+str(uuid1())+".pt")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-white', type=bool, default=False, help='Make the computer player move the white pieces')
     parser.add_argument('-model', type=str, default='')
+    parser.add_argument('-save_path', type=str, default="./games/")
+    parser.add_argument('--human_player', action='store_true')
     args = parser.parse_args()
     model = None
     if args.model == 'latest':
@@ -163,4 +190,4 @@ if __name__ == "__main__":
         model.load_state_dict(torch.load(model_dicts[0]))
         model.eval()
 
-    main(model, computer_white=args.white)
+    play_game(model, computer_white=args.white, human_player=args.human_player, save_path=args.save_path)
