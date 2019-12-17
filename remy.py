@@ -10,7 +10,7 @@ from torch_net import Engine
 
 
 class Remy:
-    def __init__(self, model=None, depth=0):
+    def __init__(self, model=None, depth=0, move_thresh=0.7):
         self.board = chess.Board()
         self.piece_to_list = {
             "p":[1] + 5*[0] + 6*[0],
@@ -30,6 +30,7 @@ class Remy:
         self.model = model
         self.depth = depth
         self.current_graph = None
+        self.move_thresh = move_thresh
 
     def __str__(self) -> str:
         return self.board.__str__()
@@ -77,9 +78,6 @@ class Remy:
         else:
             move_ps = []
             # get win probabilitilities for all moves
-            if self.board.legal_moves is None:
-                print(self)
-                a = 5
             for move in self.board.legal_moves:
                 # make the move
                 self.board.push_uci(str(move))
@@ -100,7 +98,7 @@ class Remy:
             if self.board.turn == False:
                 move_ps = [(x[0], 1-x[1]) for x in move_ps]
             max_p = max([x[1] for x in move_ps])
-            move_ps = [x for x in move_ps if x[1]/max_p > .7]
+            move_ps = [x for x in move_ps if x[1]/max_p > self.move_thresh]
             total_p = sum([x[1] for x in move_ps])
             self.board.push_uci(np.random.choice([x[0] for x in move_ps], p=[x[1]/total_p for x in move_ps]))
                 
@@ -139,8 +137,28 @@ class Remy:
         return 'white win'
 
 
-def play_game(model, computer_white=False, human_player=True, save_path="./games/"):
-    # Create board, print initial state
+def play_game(model, move_thresh=0.7, computer_white=False, human_player=True, save_path="./games/", save_game=True, ret_tensor=False, verbose=True):
+    '''
+    play game - play a game of chess using a version of Remy
+
+    params - 
+    model (pytorch neural netowrk, nullable) - a pytorch Engine network
+    move_thresh (float) - the win threshold for removing moves, see notes
+    computer_white (bool) - for a human v computer game, if computer is moving for white
+    human_player (bool) - if a human will be moving one of the sets of pieces
+    save_path (str) - base path to save board tensors
+    save_game (bool) - if the board tensor should be saved for the match
+    ret_tensor - if the board tensor should be returned for the match
+    verbose - print for maximal print output while running
+
+    note on move_thresh -
+    when calculating all legal moves, the system is not determinisitc, meaning it will choose a moved
+    proportionally to the associated win probability of that move.  To move the engine forward, we disallow moves
+    by first normalizing with respect to the best moves win probability, and filtering out all moves lower than move_thresh.
+
+    For example if two moves have associated win probabilities for white of .8, .6 and .35 respectively, under the default threshold
+    only .35 will be considered.  To have the computer play less randomly, you can raise this threshold.
+    '''
     gambit = Remy(model=model)
 
     b_over, n_turns = False, 0
@@ -156,23 +174,26 @@ def play_game(model, computer_white=False, human_player=True, save_path="./games
             board_tensor = cat((board_tensor, bt), 0)
 
         n_turns += 1
-        if n_turns%50==0:
+        if (n_turns%50==0) and (verbose is True):
             print("Turn ", n_turns)
 
-    print("This game took {} turns".format(n_turns))
-    print(board_tensor.shape)
-
-    # Print new board state
-    print(gambit)
+    if verbose is True:
+        print("This game took {} turns".format(n_turns))
+        print(board_tensor.shape)
+        print(gambit)
 
     wt = gambit.end_type()
     print("Game ends in a {}".format(wt))
-    if wt == 'draw':
-        torch.save(board_tensor, save_path + "draws/"+str(uuid1())+".pt")
-    elif wt == 'white win':
-        torch.save(board_tensor, save_path + "white_wins/"+str(uuid1())+".pt")
-    else:
-        torch.save(board_tensor, save_path + "black_wins/"+str(uuid1())+".pt")
+    if save_game is True:
+        if wt == 'draw':
+            torch.save(board_tensor, save_path + "draws/"+str(uuid1())+".pt")
+        elif wt == 'white win':
+            torch.save(board_tensor, save_path + "white_wins/"+str(uuid1())+".pt")
+        else:
+            torch.save(board_tensor, save_path + "black_wins/"+str(uuid1())+".pt")
+    
+    if ret_tensor is True:
+        return board_tensor, wt, n_turns
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
