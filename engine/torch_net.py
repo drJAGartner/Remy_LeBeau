@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import sigmoid
-from torch import optim
+from torch import sigmoid, optim
 from random import shuffle
 import os
-
+from time import time
 from uuid import uuid1
 
 class Engine(nn.Module):
@@ -20,6 +19,7 @@ class Engine(nn.Module):
         self.fc3 = nn.Linear(84, 1)
 
     def forward(self, x):
+        # TODO: try leaky_relu instead
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = sigmoid(self.fc3(x))
@@ -51,6 +51,7 @@ def train_on_all():
         games = games_generator()
         running_loss = 0.0
         i= 0
+        start = time()
         for t_in, target in games:
             # in your training loop:
             optimizer.zero_grad()   # zero the gradient buffers
@@ -64,6 +65,7 @@ def train_on_all():
             i += 1
         if epoch%100==0:
             print('Epoch %d loss: %.3f' % (epoch, running_loss / i))
+            print('Time for this epoch: {}'.format(time()-start))
 
 
     torch.save(en.state_dict(), os.getcwd() + "/saved_models/"  + str(uuid1()) + ".pt")
@@ -89,6 +91,15 @@ def update_train(en, n_epochs=500, lr=.001):
             i += 1
         if epoch%100==0:
             print('Epoch %d loss: %.3f' % (epoch, running_loss / i))
+
+def train_on_one(en, t_in, target, lr=.01):
+    criterion = nn.MSELoss()
+    optimizer = optim.SGD(en.parameters(), lr=lr)
+    optimizer.zero_grad()
+    output = en(t_in)
+    loss = criterion(output, target)
+    loss.backward()
+    optimizer.step()
 
 
 if __name__ == "__main__":
