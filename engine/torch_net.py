@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import sigmoid, optim
 from random import shuffle
-import os
+import os, engine
 from time import time
 from uuid import uuid1
 
@@ -26,7 +26,8 @@ class Engine(nn.Module):
         return x
 
 def games_generator():
-    games_path = "/".join(os.getcwd().split("/")[:-1]) + "/games/"
+    base_path = os.path.dirname(engine.torch_net.__file__)
+    games_path = base_path + "../games/"
     l_games = [(x, 0) for x in os.listdir(games_path + "black_wins/")]
     l_games = l_games + [(x, 1) for x in os.listdir(games_path+"white_wins/")]
     l_games = l_games + [(x, .5) for x in os.listdir(games_path+"draws/")]
@@ -89,17 +90,18 @@ def update_train(en, n_epochs=500, lr=.001):
             # print statistics
             running_loss += loss.item()
             i += 1
-        if epoch%100==0:
+        if epoch%25==0:
             print('Epoch %d loss: %.3f' % (epoch, running_loss / i))
 
-def train_on_one(en, t_in, target, lr=.01):
+def train_on_one(en, t_in, target, n_epochs=5, lr=.005):
     criterion = nn.MSELoss()
     optimizer = optim.SGD(en.parameters(), lr=lr)
-    optimizer.zero_grad()
-    output = en(t_in)
-    loss = criterion(output, target)
-    loss.backward()
-    optimizer.step()
+    for epoch in range(n_epochs):
+        optimizer.zero_grad()   # zero the gradient buffers
+        output = en(t_in)
+        loss = criterion(output, target)
+        loss.backward()
+        optimizer.step()
 
 
 if __name__ == "__main__":

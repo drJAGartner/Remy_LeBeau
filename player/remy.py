@@ -5,8 +5,7 @@ from torch import Tensor
 from torch import cat, zeros, ones
 from uuid import uuid1
 import sys
-sys.path.append("./engine")
-from torch_net import Engine
+from engine.torch_net import Engine
 
 
 class Remy:
@@ -137,7 +136,7 @@ class Remy:
         return 'white win'
 
 
-def play_game(model, move_thresh=0.7, computer_white=False, human_player=True, save_path="./games/", save_game=True, ret_tensor=False, verbose=True):
+def play_game(model, move_thresh=0.7, computer_white=False, human_player=True, save_path="../games/", save_game=True, ret_tensor=False, verbose=True):
     '''
     play game - play a game of chess using a version of Remy
 
@@ -199,7 +198,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-white', type=bool, default=False, help='Make the computer player move the white pieces')
     parser.add_argument('-model', type=str, default='')
-    parser.add_argument('-save_path', type=str, default="./games/")
+    parser.add_argument('-save_path', type=str, default="../games/")
     parser.add_argument('--human_player', action='store_true')
     args = parser.parse_args()
     model = None
