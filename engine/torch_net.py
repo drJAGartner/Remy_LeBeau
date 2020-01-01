@@ -27,7 +27,7 @@ class Engine(nn.Module):
 
 def games_generator():
     base_path = os.path.dirname(engine.torch_net.__file__)
-    games_path = base_path + "../games/"
+    games_path = base_path + "/../games/"
     l_games = [(x, 0) for x in os.listdir(games_path + "black_wins/")]
     l_games = l_games + [(x, 1) for x in os.listdir(games_path+"white_wins/")]
     l_games = l_games + [(x, .5) for x in os.listdir(games_path+"draws/")]
