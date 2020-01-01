@@ -97,9 +97,12 @@ class Remy:
             if self.board.turn == False:
                 move_ps = [(x[0], 1-x[1]) for x in move_ps]
             max_p = max([x[1] for x in move_ps])
-            move_ps = [x for x in move_ps if x[1]/max_p > self.move_thresh]
-            total_p = sum([x[1] for x in move_ps])
-            self.board.push_uci(np.random.choice([x[0] for x in move_ps], p=[x[1]/total_p for x in move_ps]))
+            if max_p > 0.:
+                move_ps = [x for x in move_ps if x[1]/max_p > self.move_thresh]
+                total_p = sum([x[1] for x in move_ps])
+                self.board.push_uci(np.random.choice([x[0] for x in move_ps], p=[x[1]/total_p for x in move_ps]))
+            else:
+                self.board.push_uci(np.random.choice([x[0] for x in move_ps])
                 
         return self.board_to_t(), self.board.is_game_over()
 
