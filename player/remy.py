@@ -102,7 +102,7 @@ class Remy:
                 total_p = sum([x[1] for x in move_ps])
                 self.board.push_uci(np.random.choice([x[0] for x in move_ps], p=[x[1]/total_p for x in move_ps]))
             else:
-                self.board.push_uci(np.random.choice([x[0] for x in move_ps])
+                self.board.push_uci(np.random.choice([x[0] for x in move_ps]))
                 
         return self.board_to_t(), self.board.is_game_over()
 
